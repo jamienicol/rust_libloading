@@ -14,18 +14,22 @@ struct DlerrorMutexGuard(());
 
 impl DlerrorMutexGuard {
     fn new() -> DlerrorMutexGuard {
+        println!("rust_libloading_dlerror_mutex_lock()");
         unsafe {
             rust_libloading_dlerror_mutex_lock();
         }
+        println!("lock successful");
         DlerrorMutexGuard(())
     }
 }
 
 impl Drop for DlerrorMutexGuard {
     fn drop(&mut self) {
+        println!("rust_libloading_dlerror_mutex_unlock()");
         unsafe {
             rust_libloading_dlerror_mutex_unlock();
         }
+        println!("unlock successful");
     }
 }
 
@@ -36,6 +40,7 @@ impl Drop for DlerrorMutexGuard {
 // 2008+TC1 a thread-local state was allowed, which for our purposes is way too late.
 fn with_dlerror<T, F>(closure: F) -> Result<T, Option<io::Error>>
 where F: FnOnce() -> Option<T> {
+    println!("libloading with_dlerror");
     // We will guard all uses of libdl library with our own mutex. This makes libdl
     // safe to use in MT programs provided the only way a program uses libdl is via this library.
     let _lock = DlerrorMutexGuard::new();
@@ -46,9 +51,11 @@ where F: FnOnce() -> Option<T> {
     // In all the other cases, clearing the error here will only be hiding misuse of these bindings
     // or the libdl.
     closure().ok_or_else(|| unsafe {
+        println!("libloading dlerror failure closure");
         // This code will only get executed if the `closure` returns `None`.
         let error = dlerror();
         if error.is_null() {
+            println!("libloading null error");
             // In non-dlsym case this may happen when there’re bugs in our bindings or there’s
             // non-libloading user of libdl; possibly in another thread.
             None
@@ -59,6 +66,7 @@ where F: FnOnce() -> Option<T> {
             // TODO: should do locale-aware conversion here. OTOH Rust doesn’t seem to work well in
             // any system that uses non-utf8 locale, so I doubt there’s a problem here.
             let message = CStr::from_ptr(error).to_string_lossy().into_owned();
+            println!("libloading error {:?}", message);
             Some(io::Error::new(io::ErrorKind::Other, message))
             // Since we do a copy of the error string above, maybe we should call dlerror again to
             // let libdl know it may free its copy of the string now?
@@ -98,6 +106,7 @@ impl Library {
     /// Corresponds to `dlopen(filename, RTLD_NOW)`.
     #[inline]
     pub fn new<P: AsRef<OsStr>>(filename: P) -> ::Result<Library> {
+        println!("libloading impl::Library::new()");
         Library::open(Some(filename), RTLD_NOW)
     }
 
@@ -122,16 +131,19 @@ impl Library {
     /// Corresponds to `dlopen(filename, flags)`.
     pub fn open<P>(filename: Option<P>, flags: raw::c_int) -> ::Result<Library>
     where P: AsRef<OsStr> {
+        println!("libloading impl::Library::open()");
         let filename = match filename {
             None => None,
             Some(ref f) => Some(try!(cstr_cow_from_bytes(f.as_ref().as_bytes()))),
         };
         with_dlerror(move || {
             let result = unsafe {
+                println!("about to dlopen {:?}", filename);
                 let r = dlopen(match filename {
                     None => ptr::null(),
                     Some(ref f) => f.as_ptr()
                 }, flags);
+                println!("libloading dlopen returned {:?}", r);
                 // ensure filename lives until dlopen completes
                 drop(filename);
                 r

@@ -115,6 +115,7 @@ impl Library {
     /// let _ = Library::new("libsomelib.so.1").unwrap();
     /// ```
     pub fn new<P: AsRef<OsStr>>(filename: P) -> Result<Library> {
+        println!("libloading Library::new()");
         imp::Library::new(filename).map(From::from)
     }
 
