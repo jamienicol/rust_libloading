@@ -4,6 +4,16 @@ use std::io::Write;
 use std::env;
 
 fn main(){
+    // Unset CFLAGS as they are probably intended for a target build,
+    // so may break building this as a build dependency.
+    let host = env::var("HOST").unwrap();
+    env::remove_var(format!("CFLAGS_{}", &host));
+    env::remove_var(format!("CXXFLAGS_{}", &host));
+    env::remove_var(format!("CFLAGS_{}", host.replace("-", "_")));
+    env::remove_var(format!("CXXFLAGS_{}", host.replace("-", "_")));
+    env::remove_var("CFLAGS");
+    env::remove_var("CXXFLAGS");
+
     let target_os = env::var("CARGO_CFG_TARGET_OS");
     let is_unix = env::var_os("CARGO_CFG_UNIX").is_some();
     match target_os.as_ref().map(|x| &**x) {
